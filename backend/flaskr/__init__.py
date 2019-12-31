@@ -28,7 +28,7 @@ def create_app(test_config=None):
   '''
   @TODO: Set up CORS. Allow '*' for origins. Delete the sample route after completing the TODOs
   '''
-  CORS(app, resources={r"/api/*": {"origins": "*"}})
+  CORS(app, resources={r"/*": {"origins": "*"}})
 
   '''
   @TODO: Use the after_request decorator to set Access-Control-Allow
@@ -47,15 +47,16 @@ def create_app(test_config=None):
   @app.route('/categories')
   def get_categories():
     #categories = Category.query.all()
-    categories = Category.query.with_entities(Category.type).all()
-    #formatted_categories = [category.format() for category in categories]
+    categories = Category.query.all()
+    formatted_categories = [category.format() for category in categories]
+    formatted_categories = [c.get("type") for c in formatted_categories]
 
-    if len(categories) == 0:
+    if len(formatted_categories) == 0:
       abort(404)
 
     return jsonify({
       'success': True,
-      'categories': categories,
+      'categories': formatted_categories,
       #'total': len(Category.query.all())
     })
 
@@ -76,8 +77,7 @@ def create_app(test_config=None):
   def get_paginated_questions():
     categories = Category.query.all()
     formatted_categories = [category.format() for category in categories]
-    formatted_categories = [c.get("type") for c in formatted_categories] #Zheng gave this
-    print(formatted_categories)
+    formatted_categories = [c.get("type") for c in formatted_categories]
     selection = Question.query.order_by(Question.id).all()
     current_questions = paginate_questions(request, selection)
 
@@ -147,13 +147,11 @@ def create_app(test_config=None):
   @app.route('/questions', methods=['POST'])
   def create_question():
     body = request.get_json()
-
     new_question = body.get('question', None)
     new_answer = body.get('answer', None)
     new_difficulty = body.get('difficulty', None)
     new_category = body.get('category', None)
-    #new_category = new_category + 1
-    search = body.get('search', None)
+    search = body.get('searchTerm', None)
 
     try:
       if search:
@@ -194,17 +192,23 @@ def create_app(test_config=None):
 
   @app.route('/categories/<int:id>/questions')
   def get_categories_questions(id):
-    questions = Question.query.with_entities(Question.question).filter(Question.category == id).all()
-    #formatted_questions = [question.format() for question in questions]
+    category_id = id + 1
+    category_type = Category.query.with_entities(Category.type).filter(Category.id == category_id).all()
+    category_type = category_type[0][0]
 
-    if len(questions) == 0:
+    question_data = Question.query.filter(Question.category == category_id).all()
+    question_list = [question.format() for question in question_data]
+
+    if len(question_list) == 0:
       abort(404)
 
     return jsonify({
       'success': True,
-      'category': id,
-      'questions': questions
+      'questions': question_list,
+      'total_questions': len(question_list),
+      'current_category': category_type
     })
+
 
   '''
   @TODO: 
@@ -218,24 +222,28 @@ def create_app(test_config=None):
   and shown whether they were correct or not. 
   '''
 
-  #@app.route('/quizzes', methods=['POST'])
-  @app.route('/quizzes')
+  @app.route('/quizzes', methods=['POST'])
   def get_questions_to_play():
-    #body = request.get_json()
+    body = request.get_json()
+    quiz_category = body.get('quiz_category', None)
+    previous_questions = body.get('previous_questions', None)
 
-    #quiz_category = body.get('quizCategory', None)
-    quiz_category = 6
-    questions = Question.query.filter(Question.category == quiz_category).all()
-    formatted_previous_questions = [question.format() for question in questions]
+    category_type = quiz_category.get("type")
 
-    previous_question = 3
+    category_id = Category.query.with_entities(Category.id).filter(Category.type == category_type).all()
+    category_id = category_id[0][0]
+
+    questions_list = Question.query.filter(Question.category == category_id).all()
+    formatted_questions_list = [question.format() for question in questions_list]
+    formatted_questions_list = [q.get("question") for q in formatted_questions_list]
+    previous_questions = previous_questions.insert(0, random.choice(formatted_questions_list))
 
     return jsonify({
       'success': True,
       'quiz_category': quiz_category,
-      'previous_questions': formatted_previous_questions
-      #'current_question': current_question
+      'previous_questions': previous_questions
     })
+
   '''
   @TODO: 
   Create error handlers for all expected errors 
