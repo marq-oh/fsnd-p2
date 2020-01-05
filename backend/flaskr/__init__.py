@@ -46,7 +46,9 @@ def create_app(test_config=None):
   '''
   @app.route('/categories')
   def get_categories():
-    #categories = Category.query.all()
+
+    # First, query to get all categories
+    # Then, filter to only store category type because that's all that's needed
     categories = Category.query.all()
     formatted_categories = [category.format() for category in categories]
     formatted_categories = [c.get("type") for c in formatted_categories]
@@ -57,7 +59,6 @@ def create_app(test_config=None):
     return jsonify({
       'success': True,
       'categories': formatted_categories,
-      #'total': len(Category.query.all())
     })
 
   '''
@@ -75,19 +76,36 @@ def create_app(test_config=None):
 
   @app.route('/questions')
   def get_paginated_questions():
+
+    # Get full list of categories and format appropriately for jsonify
     categories = Category.query.all()
     formatted_categories = [category.format() for category in categories]
-    formatted_categories = [c.get("type") for c in formatted_categories]
+
+    # Get all questions and then pass to paginate_questions() to format for jsonify
+    # and set up pagination
     selection = Question.query.order_by(Question.id).all()
     current_questions = paginate_questions(request, selection)
+
+    # Define arrays for category data
+    category_ids = []
+    category_types = []
+
+    # Populate arrays with actual values
+    for cat in formatted_categories:
+      category_ids.append(cat['id'])
+      category_types.append(cat['type'])
+
+    # Combine arrays to create dictionary with the required data and format
+    categories_dict = dict(zip(category_ids, category_types))
+
 
     if len(current_questions) == 0:
       abort(404)
 
     return jsonify({
       'success': True,
-      'categories': formatted_categories,
-      'current_category': formatted_categories,
+      'categories': categories_dict,
+      'current_category': None,
       'questions': current_questions,
       'total_questions': len(Question.query.all())
     })
@@ -103,13 +121,17 @@ def create_app(test_config=None):
   @app.route('/questions/<int:id>', methods=['DELETE'])
   def delete_question(id):
     try:
+      # Query to get question by ID
       question = Question.query.filter(Question.id == id).one_or_none()
 
       if question is None:
         abort(404)
 
+      # Execute delete transaction
       question.delete()
       selection = Question.query.order_by(Question.id).all()
+
+      # Ensure questions are displayed with pagination
       current_questions = paginate_questions(request, selection)
 
       return jsonify({
@@ -146,6 +168,8 @@ def create_app(test_config=None):
 
   @app.route('/questions', methods=['POST'])
   def create_question():
+
+    # Get data that was submitted to endpoint
     body = request.get_json()
     new_question = body.get('question', None)
     new_answer = body.get('answer', None)
@@ -154,7 +178,10 @@ def create_app(test_config=None):
     search = body.get('searchTerm', None)
 
     try:
+      # Check if 'search form' was used
       if search:
+
+        # Query according to search term
         selection = Question.query.order_by(Question.id).filter(Question.question.ilike('%{}%'.format(search)))
         current_questions = paginate_questions(request, selection)
 
@@ -163,10 +190,14 @@ def create_app(test_config=None):
           'questions': current_questions,
           'total_books': len(Question.query.all())
         })
+
+      # If 'search form' was not used
       else:
+        # Prepare INSERT transaction
         question = Question(question=new_question, answer=new_answer, difficulty=new_difficulty, category=new_category)
         question.insert()
 
+        # Display latest data with pagination
         selection = Question.query.order_by(Question.id).all()
         current_questions = paginate_questions(request, selection)
 
@@ -192,23 +223,36 @@ def create_app(test_config=None):
 
   @app.route('/categories/<int:id>/questions')
   def get_categories_questions(id):
-    category_id = id + 1
-    #category_id = id
-    print(category_id)
-    category_type = Category.query.with_entities(Category.type).filter(Category.id == category_id).all()
-    category_type = category_type[0][0]
+    # Get category data based on ID
+    category_id = id
+    category_data = Category.query.filter(Category.id == category_id).all()
+    category_list = [category.format() for category in category_data]
 
+    # Get question data based on selected category
     question_data = Question.query.filter(Question.category == category_id).all()
     question_list = [question.format() for question in question_data]
 
-    if len(question_list) == 0:
+    if len(question_list) == 0 or (category_list) == 0:
       abort(404)
+
+    # Define arrays for category data
+    category_ids = []
+    category_types = []
+
+    # Populate arrays with actual values
+    for cat in formatted_categories:
+      category_ids.append(cat['id'])
+      category_types.append(cat['type'])
+
+    # Combine arrays to create dictionary with the required data and format
+    categories_dict = dict(zip(category_ids, category_types))
 
     return jsonify({
       'success': True,
       'questions': question_list,
+      'categories': category_list,
       'total_questions': len(question_list),
-      'current_category': category_type
+      'current_category': categories_dict[category_id]
     })
 
 
@@ -226,31 +270,44 @@ def create_app(test_config=None):
 
   @app.route('/quizzes', methods=['POST'])
   def get_questions_to_play():
+
+    # Get JSON data submitted to endpoint
     body = request.get_json()
+
+    if not body:
+      abort(400)
+
+    # Set up variables from submitted JSON data
     quiz_category = body.get('quiz_category', None)
+    quiz_category_type = quiz_category.get('type')
+    quiz_category_id = quiz_category.get('id')
     previous_questions = body.get('previous_questions', None)
 
-    category_type = quiz_category.get("type")
+    # Get questions
+    if quiz_category_id == 0:
+      questions_list = Question.query.order_by(Question.id).all()
+      formatted_questions_list = [question.format() for question in questions_list]
+      formatted_questions_list = [q.get("question") for q in formatted_questions_list]
+      random_q = random.choice(formatted_questions_list)
 
-    category_id = Category.query.with_entities(Category.id).filter(Category.type == category_type).all()
-    category_id = category_id[0][0]
+    else:
+      questions_list = Question.query.filter(Question.category == quiz_category_id).all()
+      formatted_questions_list = [question.format() for question in questions_list]
+      formatted_questions_list = [q.get("question") for q in formatted_questions_list]
+      random_q = random.choice(formatted_questions_list)
 
-    questions_list = Question.query.filter(Question.category == category_id).all()
-
-    formatted_questions_list = [question.format() for question in questions_list]
-    formatted_questions_list = [q.get("question") for q in formatted_questions_list]
-    random_q = random.choice(formatted_questions_list)
 
     #previous_questions.insert(0, random_q)
 
     #previous_questions = previous_questions.push(random.choice(formatted_questions_list))
 
-    print(formatted_questions_list)
-    print(random_q)
+    #print(formatted_questions_list)
+    #print(random_q)
 
     return jsonify({
       'success': True,
-      'quiz_category': quiz_category,
+      'quizCategory': 'ALL' if quiz_category_id == 0 else quiz_category_type,
+      #'categories': questions['categories'],
       'question': random_q,
       'previous_questions': previous_questions
     })
