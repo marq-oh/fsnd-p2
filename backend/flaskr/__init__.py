@@ -193,6 +193,8 @@ def create_app(test_config=None):
   @app.route('/categories/<int:id>/questions')
   def get_categories_questions(id):
     category_id = id + 1
+    #category_id = id
+    print(category_id)
     category_type = Category.query.with_entities(Category.type).filter(Category.id == category_id).all()
     category_type = category_type[0][0]
 
@@ -234,13 +236,22 @@ def create_app(test_config=None):
     category_id = category_id[0][0]
 
     questions_list = Question.query.filter(Question.category == category_id).all()
+
     formatted_questions_list = [question.format() for question in questions_list]
     formatted_questions_list = [q.get("question") for q in formatted_questions_list]
-    previous_questions = previous_questions.insert(0, random.choice(formatted_questions_list))
+    random_q = random.choice(formatted_questions_list)
+
+    #previous_questions.insert(0, random_q)
+
+    #previous_questions = previous_questions.push(random.choice(formatted_questions_list))
+
+    print(formatted_questions_list)
+    print(random_q)
 
     return jsonify({
       'success': True,
       'quiz_category': quiz_category,
+      'question': random_q,
       'previous_questions': previous_questions
     })
 
