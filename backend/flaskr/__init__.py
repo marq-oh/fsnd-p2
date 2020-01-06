@@ -171,10 +171,16 @@ def create_app(test_config=None):
 
     # Get data that was submitted to endpoint
     body = request.get_json()
+
+    for value in body.values():
+      if not value:
+        abort(400)
+
     new_question = body.get('question', None)
     new_answer = body.get('answer', None)
     new_difficulty = body.get('difficulty', None)
     new_category = body.get('category', None)
+    new_category = int(new_category) + 1
     search = body.get('searchTerm', None)
 
     try:
@@ -240,7 +246,7 @@ def create_app(test_config=None):
     category_types = []
 
     # Populate arrays with actual values
-    for cat in formatted_categories:
+    for cat in category_list:
       category_ids.append(cat['id'])
       category_types.append(cat['type'])
 
@@ -281,35 +287,58 @@ def create_app(test_config=None):
     quiz_category = body.get('quiz_category', None)
     quiz_category_type = quiz_category.get('type')
     quiz_category_id = quiz_category.get('id')
+    quiz_category_id = int(quiz_category_id)
     previous_questions = body.get('previous_questions', None)
 
     # Get questions
-    if quiz_category_id == 0:
+    if quiz_category_type == 'click':
+      cat_id = 0
       questions_list = Question.query.order_by(Question.id).all()
       formatted_questions_list = [question.format() for question in questions_list]
-      formatted_questions_list = [q.get("question") for q in formatted_questions_list]
       random_q = random.choice(formatted_questions_list)
+
+      # Loop to check for previous questions
+      counter = 1
+      random_q = {}
+
+      if len(previous_questions) > 0:
+        for q in formatted_questions_list:
+          if q['id'] not in previous_questions:
+            random_q = q
+            break
+          elif counter == len(formatted_questions_list):
+            random_q = random.choice(formatted_questions_list)
+            break
+          counter += 1
+      else:
+        random_q = random.choice(formatted_questions_list)
 
     else:
-      questions_list = Question.query.filter(Question.category == quiz_category_id).all()
+      cat_id = quiz_category_id + 1
+      questions_list = Question.query.filter(Question.category == cat_id).all()
       formatted_questions_list = [question.format() for question in questions_list]
-      formatted_questions_list = [q.get("question") for q in formatted_questions_list]
-      random_q = random.choice(formatted_questions_list)
 
+      # Loop to check for previous questions
+      counter = 1
+      random_q = {}
 
-    #previous_questions.insert(0, random_q)
-
-    #previous_questions = previous_questions.push(random.choice(formatted_questions_list))
-
-    #print(formatted_questions_list)
-    #print(random_q)
+      if len(previous_questions) > 0:
+        for q in formatted_questions_list:
+          if q['id'] not in previous_questions:
+            random_q = q
+            break
+          elif counter == len(formatted_questions_list):
+            random_q = random.choice(formatted_questions_list)
+            break
+          counter += 1
+      else:
+        random_q = random.choice(formatted_questions_list)
 
     return jsonify({
       'success': True,
-      'quizCategory': 'ALL' if quiz_category_id == 0 else quiz_category_type,
-      #'categories': questions['categories'],
-      'question': random_q,
-      'previous_questions': previous_questions
+      'quizCategory': 'ALL' if quiz_category_type == 'click' else quiz_category_type,
+      'previous_questions': previous_questions,
+      'question': random_q
     })
 
   '''
