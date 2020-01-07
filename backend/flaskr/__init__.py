@@ -180,7 +180,8 @@ def create_app(test_config=None):
     new_answer = body.get('answer', None)
     new_difficulty = body.get('difficulty', None)
     new_category = body.get('category', None)
-    new_category = int(new_category) + 1
+    if new_category != None:
+      new_category = int(new_category) + 1
     search = body.get('searchTerm', None)
 
     try:
@@ -355,7 +356,7 @@ def create_app(test_config=None):
     }), 404
 
   @app.errorhandler(422)
-  def not_found(error):
+  def unprocessable(error):
     return jsonify({
       "success": False,
       "error": 422,
@@ -363,7 +364,7 @@ def create_app(test_config=None):
     }), 422
 
   @app.errorhandler(400)
-  def not_found(error):
+  def bad_request(error):
     return jsonify({
       "success": False,
       "error": 400,
@@ -371,7 +372,7 @@ def create_app(test_config=None):
     }), 400
 
   @app.errorhandler(500)
-  def not_found(error):
+  def server_error(error):
     return jsonify({
       "success": False,
       "error": 500,
@@ -379,7 +380,7 @@ def create_app(test_config=None):
     }), 500
 
   @app.errorhandler(405)
-  def not_found(error):
+  def not_allowed(error):
     return jsonify({
       "success": False,
       "error": 405,
